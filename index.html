@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>수영장 회식 경품 추첨</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 레이아웃: 왼쪽은 수영장 레인 같은 추첨 무대, 오른쪽은 당첨자·경품·참가자. 진행자 설정은 무대 아래 접이식 */
+:root{
+  --bg:#e8f4f7; --surface:#ffffff; --ink:#0d2a3a; --muted:#567684; --line:#c6dfe7;
+  --pool:#0a86ab; --pool-ink:#ffffff; --tile:#d5edf3; --tile-line:#bfe1ea;
+  --buoy:#d9432a; --win:#0f8a5f; --win-soft:#dcf3ea;
+  --display:"Black Han Sans","Noto Sans KR",system-ui,sans-serif;
+  --body:"Noto Sans KR",system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#06171f; --surface:#0c2430; --ink:#e2f2f6; --muted:#8eaebb; --line:#1d3d4b;
+  --pool:#2fb6d8; --pool-ink:#031118; --tile:#0a2b38; --tile-line:#103a4a;
+  --buoy:#ff6a4d; --win:#3fcf98; --win-soft:#0e3428; color-scheme:dark}}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
+img{max-width:100%}
+[hidden]{display:none!important}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,5vw,40px);line-height:1.1;margin:0;text-wrap:balance;letter-spacing:.01em}
+.sub{color:var(--muted);margin:4px 0 0}
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--line);font-size:13px;font-weight:500;white-space:nowrap;color:var(--ink)}
+.pill .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pill.live .dot{background:var(--win)}
+.pill.err .dot{background:var(--buoy)}
+.pill b{font-family:var(--mono);font-weight:600}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.card h2{font-size:13px;letter-spacing:.08em;color:var(--muted);margin:0;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.stage{position:relative;border-radius:18px;overflow:hidden;background-color:var(--tile);
+  background-image:linear-gradient(var(--tile-line) 1px,transparent 1px),linear-gradient(90deg,var(--tile-line) 1px,transparent 1px);
+  background-size:22px 22px;border:1px solid var(--line)}
+.rope{height:10px;background:repeating-linear-gradient(90deg,var(--buoy) 0 18px,var(--surface) 18px 36px);opacity:.9}
+.stage-inner{padding:22px 18px;display:flex;flex-direction:column;align-items:center;gap:14px;min-height:320px;justify-content:center}
+.lane-label{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.12em;text-align:center}
+.slot{width:min(100%,560px);background:var(--surface);border:2px solid var(--line);border-radius:16px;padding:22px 16px;text-align:center;transition:border-color .2s,transform .2s}
+.slot .name{font-family:var(--display);font-size:clamp(40px,10vw,76px);line-height:1.1;min-height:1.1em;overflow-wrap:anywhere}
+.slot .prize{margin-top:6px;color:var(--muted);font-weight:500}
+.slot.spinning .name{color:var(--pool)}
+.slot.landed{border-color:var(--win);transform:scale(1.02)}
+.slot.landed .name{color:var(--win)}
+.slot.landed .prize{color:var(--ink)}
+.slot.wait .name{font-size:clamp(30px,7vw,48px)}
+.next{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:14px}
+.next img{width:44px;height:44px;border-radius:9px;object-fit:cover;background:var(--surface);border:1px solid var(--line);flex:none}
+.actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+button{font:inherit;cursor:pointer;border-radius:11px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;font-weight:500}
+button:hover:not(:disabled){border-color:var(--pool)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--pool);outline-offset:2px}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--pool);color:var(--pool-ink);border-color:var(--pool);font-family:var(--display);font-weight:400;font-size:22px;padding:12px 28px;letter-spacing:.02em}
+button.go{background:var(--buoy);border-color:var(--buoy);color:#fff}
+button.danger{color:var(--buoy);border-color:var(--buoy)}
+button.small{padding:5px 10px;font-size:13px}
+.hint{color:var(--muted);font-size:13px;text-align:center;margin:0}
+.soundbtn{cursor:pointer}
+.soundbtn[aria-pressed="false"]{color:var(--muted)}
+.tapsound{position:absolute;top:22px;right:16px;z-index:3;background:var(--buoy);color:#fff;border-color:var(--buoy);font-weight:700;animation:nudge 1s ease-in-out infinite}
+@keyframes nudge{50%{transform:scale(1.06)}}
+.ladder-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.ladder-scroll canvas{display:block;margin:0 auto}
+.prizes{display:flex;flex-direction:column;gap:10px}
+.prize-row{display:flex;gap:12px;align-items:center}
+.prize-row img,.prize-row .ph{width:64px;height:64px;border-radius:12px;object-fit:cover;background:var(--surface);border:1px solid var(--line);flex:none;display:grid;place-items:center;color:var(--muted);font-size:12px}
+.prize-row .meta{min-width:0}
+.prize-row .pname{font-weight:700;overflow-wrap:anywhere}
+.prize-row .left{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.prize-row.gone{opacity:.5}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:var(--tile);border:1px solid var(--line);font-size:13.5px;max-width:100%;overflow-wrap:anywhere}
+.chip.won{background:var(--win-soft);border-color:var(--win);color:var(--win);font-weight:700}
+ol.winners{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+ol.winners li{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--win-soft)}
+ol.winners li .no{font-family:var(--mono);font-weight:600;color:var(--win);font-variant-numeric:tabular-nums}
+ol.winners li .wn{font-weight:700;overflow-wrap:anywhere}
+ol.winners li .wp{font-size:12.5px;color:var(--muted);text-align:right}
+ol.winners li.fresh{animation:pop .6s ease}
+@keyframes pop{0%{transform:scale(.96);background:var(--win)}100%{transform:none}}
+.empty{color:var(--muted);font-size:14px;margin:0}
+.regform{display:flex;gap:8px}
+.regform input{flex:1}
+.note.ok{color:var(--win);font-weight:700}
+textarea.copy{width:100%;font-family:var(--mono);font-size:12px}
+details.setup{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+details.setup summary{cursor:pointer;padding:14px 16px;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:8px}
+details.setup summary::-webkit-details-marker{display:none}
+details.setup summary::after{content:"열기";color:var(--muted);font-weight:500;font-size:13px}
+details.setup[open] summary::after{content:"닫기"}
+.setup-body{padding:0 16px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}
+.field{display:flex;flex-direction:column;gap:8px;min-width:0}
+.field>label,.field .lbl{font-weight:700;font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input[type=text],input[type=number],textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-width:0}
+input[type=number]{width:80px;font-family:var(--mono)}
+textarea#pList{min-height:160px;resize:vertical}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:9px 16px}
+.seg button[aria-pressed="true"]{background:var(--pool);color:var(--pool-ink)}
+.pe{display:grid;grid-template-columns:40px minmax(0,1fr) 64px;gap:8px;align-items:center}
+.pe img{width:40px;height:40px;border-radius:8px;object-fit:cover}
+.pe input[type=number]{width:100%}
+.note{font-size:13px;color:var(--muted);margin:0}
+.confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+.bubbles{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.bubbles i{position:absolute;bottom:-20px;width:14px;height:14px;border-radius:50%;border:2px solid var(--pool);opacity:.7;animation:rise 1.8s ease-out forwards}
+@keyframes rise{to{transform:translateY(-380px) scale(1.4);opacity:0}}
+@media (prefers-reduced-motion:reduce){.bubbles{display:none}ol.winners li.fresh,.tapsound{animation:none}.slot{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>수영장 회식 경품 추첨</h1>
+      <p class="sub">참석하시는 분은 오른쪽에서 이름을 등록해 주세요. 이 페이지를 열어 두면 진행자가 뽑는 순간 같이 볼 수 있어요.</p>
+    </div>
+    <div class="pills">
+      <span class="pill" id="connPill"><span class="dot"></span><span id="connText">연결 중…</span></span>
+      <span class="pill" id="phasePill">추첨 전</span>
+      <button type="button" class="pill soundbtn" id="soundBtn" aria-pressed="true">🔊 소리 켜짐</button>
+      <span class="pill">참가 <b id="cntPeople">0</b>명</span>
+      <span class="pill">당첨 <b id="cntDone">0</b>/<b id="cntTotal">0</b></span>
+    </div>
+  </header>
+  <div class="grid">
+    <div class="col">
+      <section class="stage" aria-label="추첨 무대">
+        <div class="rope"></div>
+        <div class="stage-inner" id="stageInner"></div>
+        <div class="rope"></div>
+        <div class="bubbles" id="bubbles"></div>
+        <button type="button" class="tapsound" id="tapSound" hidden>🔊 탭해서 소리 듣기</button>
+      </section>
+      <details class="setup" id="setup" hidden>
+        <summary>진행자 설정 (진행자에게만 보여요)</summary>
+        <div class="setup-body">
+          <div class="field">
+            <label for="pList">참가자 명단 (한 줄에 한 명, 쉼표도 가능)</label>
+            <textarea id="pList" spellcheck="false" placeholder="단톡방에서 받은 이름을 붙여넣으세요"></textarea>
+            <div class="row"><button type="button" id="pApply">명단 저장</button><span class="note" id="pInfo"></span></div>
+            <div class="row"><input type="number" id="pCount" min="2" max="200" value="25" aria-label="인원 수"><button type="button" class="small" id="pFill">명 번호로 채우기</button></div>
+          </div>
+          <div class="field">
+            <span class="lbl">추첨 방식</span>
+            <div class="seg" role="group" aria-label="추첨 방식">
+              <button type="button" id="modeRoulette" aria-pressed="true">룰렛</button>
+              <button type="button" id="modeLadder" aria-pressed="false">사다리</button>
+            </div>
+            <p class="note">룰렛: 누를 때마다 한 명씩 당첨. 사다리: 사다리는 숨겨져 있고 한 명씩 내려가면서 길이 드러납니다.</p>
+            <span class="lbl" style="margin-top:8px">되돌리기</span>
+            <div id="resetArea"></div>
+          </div>
+          <div class="field">
+            <span class="lbl">경품</span>
+            <div id="prizeEdit" style="display:flex;flex-direction:column;gap:8px"></div>
+            <p class="note" id="prizeNote"></p>
+          </div>
+        </div>
+      </details>
+    </div>
+    <aside class="col">
+      <section class="card" id="regCard">
+        <h2>참가 등록</h2>
+        <form class="regform" id="regForm">
+          <input type="text" id="regName" maxlength="20" placeholder="이름 (동명이인은 팀명도)" aria-label="이름" autocomplete="name">
+          <button type="submit" class="small" id="regBtn">등록</button>
+        </form>
+        <p class="note" id="regState"></p>
+      </section>
+      <section class="card">
+        <h2>당첨자 명단 <button type="button" class="small" id="copyBtn">복사</button></h2>
+        <ol class="winners" id="winList"></ol>
+        <textarea class="copy" id="copyBox" rows="6" readonly hidden></textarea>
+      </section>
+      <section class="card">
+        <h2>경품</h2>
+        <div class="prizes" id="prizeList"></div>
+      </section>
+      <section class="card">
+        <h2>참가자 <span id="peopleCount" style="font-family:var(--mono)"></span></h2>
+        <div class="chips" id="people"></div>
+      </section>
+    </aside>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+/* 설정: TOPIC은 실시간 전달 채널 이름(추측하기 어렵게 무작위), HOST_HASH는 진행자 키의 SHA-256 */
+const CFG={NTFY:"https://ntfy.sh",TOPIC:"pool-lottery-hcgf24qdn9eynvawz46v",HOST_HASH:"09af75be6d124e26b37a8cdab43316e9151ac9cdbe6373ed6d6242bbe8885107"};
+const $=id=>document.getElementById(id);
+const REDUCED=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const LS_KEY="pool-lottery-host-"+CFG.TOPIC;
+
+function defaults(){return{v:4,mode:"roulette",phase:"ready",participants:[],
+  prizes:[["black","검정"],["mint","민트"],["blue","블루"],["green","초록"],["pink","핑크"]].map(([k,n])=>({id:k,name:"수경 케이스 · "+n,qty:2,img:"img/"+k+".jpg"})),
+  winners:[],ladder:null,seq:0,last:null}}
+let S=defaults();
+let isHost=false,busy=false,shownSeq=0,freshSeq=0,confirmKind=null,lastId=null,es=null,ready=false;
+
+/* ---------- 유틸 ---------- */
+function rnd(n){const a=new Uint32Array(1);crypto.getRandomValues(a);return a[0]%n}
+function clone(o){return JSON.parse(JSON.stringify(o))}
+function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2800)}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function units(){const u=[];(S.prizes||[]).forEach((p,pi)=>{const q=Math.max(0,Math.floor(+p.qty||0));for(let k=1;k<=q;k++)u.push({pi,k,q})});return u}
+function unitLabel(ui){const u=units()[ui];if(!u)return"경품";const p=S.prizes[u.pi]||{name:"경품"};return u.q>1?`${p.name} (${u.k}/${u.q})`:p.name}
+function prizeImg(p){return p&&typeof p.img==="string"&&/^img\/[a-z0-9-]+\.(jpg|png|webp)$/.test(p.img)?p.img:null}
+function pool(){return S.ladder?S.ladder.names:(S.participants||[])}
+function isOpen(){return S.phase==="open"}
+function canSee(){return isHost||isOpen()}
+function totalDraws(){return Math.min(units().length,pool().length)}
+function started(){return S.winners.length>0||!!(S.ladder&&S.ladder.revealed.length)}
+function done(){return pool().length>0&&S.winners.length>=totalDraws()}
+function visibleWinners(){return canSee()?S.winners.filter(w=>w.seq<=shownSeq):[]}
+function ss(k,v){try{if(v===undefined)return sessionStorage.getItem(k);sessionStorage.setItem(k,v)}catch(e){return null}}
+function bump(st,kind,extra){st.seq=(st.seq||0)+1;st.last=Object.assign({seq:st.seq,kind},extra||{});return st.seq}
+/* 받은 상태가 정상 구조인지 확인 (채널은 공개라서 이상한 메시지는 버린다) */
+function valid(d){return d&&typeof d==="object"&&Array.isArray(d.participants)&&Array.isArray(d.prizes)&&Array.isArray(d.winners)&&typeof d.seq==="number"&&d.participants.length<=300&&d.prizes.length<=30}
+
+/* ---------- 실시간 전달 (ntfy.sh) ---------- */
+function setConn(st){const p=$("connPill"),t=$("connText");p.className="pill"+(st==="live"?" live":st==="err"?" err":"");
+  t.textContent=st==="live"?(isHost?"진행자 · 실시간 연결됨":"실시간 연결됨"):st==="err"?"연결 끊김 · 다시 연결 중":"연결 중…"}
+async function loadLatest(){
+  const ctl=typeof AbortController!=="undefined"?new AbortController():null;const to=setTimeout(()=>{try{ctl&&ctl.abort()}catch(e){}},8000);
+  try{const r=await fetch(`${CFG.NTFY}/${CFG.TOPIC}/json?poll=1&since=all`,{cache:"no-store",signal:ctl?ctl.signal:undefined});clearTimeout(to);
+    const lines=(await r.text()).split("\n").filter(Boolean);let best=null;
+    for(const l of lines){try{const m=JSON.parse(l);if(m.event!=="message")continue;lastId=m.id;const d=JSON.parse(m.message);if(valid(d)&&(!best||d.seq>=best.seq))best=d}catch(e){}}
+    return best}catch(e){return null}}
+function subscribe(){
+  try{es&&es.close()}catch(e){}
+  es=new EventSource(`${CFG.NTFY}/${CFG.TOPIC}/sse`+(lastId?`?since=${encodeURIComponent(lastId)}`:""));
+  es.onopen=()=>setConn("live");
+  es.onerror=()=>setConn("err");
+  es.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.event!=="message")return;lastId=m.id;const d=JSON.parse(m.message);
+    if(valid(d)&&d.seq>(S.seq||0))applyState(d,false)}catch(err){}};
+}
+/* 진행자: 상태 전체를 채널에 보내고, 내 화면에도 바로 반영 */
+async function commit(next,msg){
+  if(busy)return;if(!isHost){toast("진행자 화면에서만 바꿀 수 있어요.");return}
+  busy=true;renderAll(true,true);
+  try{const r=await fetch(`${CFG.NTFY}/${CFG.TOPIC}`,{method:"POST",body:JSON.stringify(next)});if(!r.ok)throw new Error("HTTP "+r.status);
+    busy=false;try{localStorage.setItem(LS_KEY,JSON.stringify(next))}catch(e){}applyState(next,false);if(msg)toast(msg)}
+  catch(e){busy=false;toast("전송하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.");renderAll(true)}
+}
+function applyState(d,initial){
+  const prev=(S.last&&S.last.seq)||0;S=d;const last=S.last;const lseq=(last&&last.seq)||0;
+  if(!initial&&last&&lseq>prev&&canSee()&&!busy){
+    if(last.kind==="draw"&&S.mode==="roulette"){const w=S.winners.find(x=>x.seq===lseq);
+      if(w){shownSeq=lseq-1;const taken=new Set(S.winners.filter(x=>x.seq!==lseq).map(x=>x.pidx));animateRoulette(w,S.participants.filter((_,i)=>!taken.has(i)));return}}
+    if(last.kind==="ladder"&&S.mode==="ladder"&&S.ladder){shownSeq=lseq-1;animateLadder(last.col,lseq);return}
+  }
+  shownSeq=lseq;renderAll(true);
+}
+
+/* ---------- 참가 등록 (로그인 없이 이름만 보내면 진행자 화면이 명단에 추가) ---------- */
+const JOIN=CFG.TOPIC+"-join";
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function myId(){let v=lsGet("pool-me");if(!v){const a=new Uint32Array(2);crypto.getRandomValues(a);v=a[0].toString(36)+a[1].toString(36);lsSet("pool-me",v)}return v}
+async function register(name){
+  name=String(name||"").trim().slice(0,20);if(!name){toast("이름을 입력해 주세요.");return}
+  if(started()||isOpen()){toast("등록이 마감되었어요.");return}
+  const mine=lsGet("pool-myname");if(name!==mine&&pool().includes(name)){toast("같은 이름이 이미 있어요. 팀명을 붙여 주세요.");return}
+  $("regBtn").disabled=true;
+  try{const r=await fetch(`${CFG.NTFY}/${JOIN}`,{method:"POST",body:JSON.stringify({id:myId(),name,at:Date.now()})});if(!r.ok)throw 0;
+    lsSet("pool-myname",name);toast("등록을 보냈어요. 잠시 후 참가자 목록에 이름이 보여요.")}
+  catch(e){toast("등록을 보내지 못했어요. 인터넷 연결을 확인해 주세요.")}
+  finally{$("regBtn").disabled=false;renderReg()}
+}
+$("regForm").addEventListener("submit",ev=>{ev.preventDefault();register($("regName").value)});
+function renderReg(){
+  const closed=started()||isOpen();const mine=lsGet("pool-myname");const inList=!!mine&&pool().includes(mine);
+  const inp=$("regName");inp.disabled=$("regBtn").disabled=closed||!ready;$("regBtn").textContent=mine?"이름 변경":"등록";
+  if(document.activeElement!==inp&&!inp.value&&mine)inp.value=mine;
+  const st=$("regState");st.className="note"+(inList?" ok":"");
+  st.textContent=closed?(inList?`${mine} 님 참가 확정`:"등록이 마감되었어요."):inList?`${mine} 님 등록 완료. 이 화면을 열어 두면 추첨을 같이 볼 수 있어요.`:mine?"등록을 보냈어요. 진행자 화면이 켜지면 목록에 추가돼요.":"이름을 등록하면 추첨 명단에 들어가요.";
+}
+/* 진행자: 등록 메시지를 모아 명단에 합친다 */
+let joinMap={},applied={},mergeT=null;
+function loadJoinStore(){try{joinMap=JSON.parse(lsGet(LS_KEY+"-joins")||"{}")||{};applied=JSON.parse(lsGet(LS_KEY+"-applied")||"{}")||{}}catch(e){joinMap={};applied={}}}
+function onJoin(d){if(!isHost||!d||typeof d.id!=="string"||typeof d.name!=="string")return;const name=d.name.trim().slice(0,20);if(!name||d.id.length>40)return;
+  if(joinMap[d.id]===name)return;joinMap[d.id]=name;lsSet(LS_KEY+"-joins",JSON.stringify(joinMap));clearTimeout(mergeT);mergeT=setTimeout(mergeJoins,1200)}
+function mergeJoins(){
+  if(!isHost||started()||isOpen())return;if(busy){mergeT=setTimeout(mergeJoins,800);return}
+  const list=(S.participants||[]).slice();let changed=false;
+  for(const id of Object.keys(joinMap)){const nm=joinMap[id],prev=applied[id];if(prev===nm)continue;
+    if(prev){const i=list.indexOf(prev);if(i>=0)list.splice(i,1)}if(!list.includes(nm))list.push(nm);applied[id]=nm;changed=true}
+  lsSet(LS_KEY+"-applied",JSON.stringify(applied));
+  if(changed&&list.length<=300){const n=clone(S);n.participants=list;n.ladder=null;bump(n,"edit");commit(n,`참가 등록 반영 · 현재 ${list.length}명`)}
+}
+async function watchJoins(){
+  try{const r=await fetch(`${CFG.NTFY}/${JOIN}/json?poll=1&since=all`,{cache:"no-store"});
+    (await r.text()).split("\n").filter(Boolean).forEach(l=>{try{const m=JSON.parse(l);if(m.event==="message")onJoin(JSON.parse(m.message))}catch(e){}})}catch(e){}
+  const je=new EventSource(`${CFG.NTFY}/${JOIN}/sse?since=${Math.floor(Date.now()/1000)}`);
+  je.onmessage=e=>{try{const m=JSON.parse(e.data);if(m.event==="message")onJoin(JSON.parse(m.message))}catch(err){}};
+}
+
+/* ---------- 진행 동작 ---------- */
+function openNow(){const n=clone(S);if((n.participants||[]).length<2){toast("참가자를 2명 이상 넣어 주세요.");return}n.phase="open";bump(n,"open");commit(n,"추첨을 공개했어요. 모든 화면에 무대가 열렸어요.")}
+function drawRoulette(){
+  if(busy||done())return;const n=clone(S);n.phase="open";
+  const taken=new Set(n.winners.map(w=>w.pidx));const rem=[];n.participants.forEach((_,i)=>{if(!taken.has(i))rem.push(i)});if(!rem.length)return;
+  const pidx=rem[rnd(rem.length)];const seq=bump(n,"draw",{pidx});
+  n.winners.push({pidx,name:n.participants[pidx],ui:n.winners.length,seq});commit(n);
+}
+const LV=14;
+function makeLadder(n){
+  const names=n.participants.slice();const N=names.length;const U=Math.min(units().length,N);
+  const pos=[...Array(N).keys()];for(let i=N-1;i>0;i--){const j=rnd(i+1);[pos[i],pos[j]]=[pos[j],pos[i]]}
+  const bottom=Array(N).fill(-1);for(let k=0;k<U;k++)bottom[pos[k]]=k;
+  const a=new Uint32Array(1);crypto.getRandomValues(a);n.ladder={seed:a[0],names,bottom,revealed:[]};
+}
+function revealLadder(col){
+  if(busy||done())return;const n=clone(S);n.phase="open";
+  if(!n.ladder){if(n.participants.length<2){toast("참가자를 2명 이상 넣어 주세요.");return}makeLadder(n)}
+  const L=n.ladder;if(col==null){const rem=[];for(let c=0;c<L.names.length;c++)if(!L.revealed.includes(c))rem.push(c);if(!rem.length)return;col=rem[rnd(rem.length)]}
+  if(L.revealed.includes(col))return;
+  L.revealed.push(col);const ui=L.bottom[traceFor(L,col).end];const seq=bump(n,"ladder",{col});
+  if(ui>=0)n.winners.push({pidx:col,name:L.names[col],ui,seq});commit(n);
+}
+function undoLast(){const n=clone(S);
+  if(n.ladder&&n.ladder.revealed.length){const c=n.ladder.revealed.pop();n.winners=n.winners.filter(w=>w.pidx!==c)}
+  else if(n.winners.length)n.winners.pop();else return;
+  bump(n,"undo");confirmKind=null;commit(n,"마지막 결과를 취소했어요.")}
+function resetDraws(){const n=clone(S);n.winners=[];n.ladder=null;bump(n,"reset");confirmKind=null;commit(n,"추첨 결과를 지웠어요.")}
+function closeAgain(){const n=clone(S);n.winners=[];n.ladder=null;n.phase="ready";bump(n,"reset");confirmKind=null;commit(n,"추첨 전 상태로 돌렸어요. 다시 비공개예요.")}
+
+/* ---------- 사운드 (Web Audio 합성: 두구두구 드럼롤, 팡파르, 꽝) ---------- */
+let AC=null,drumIv=null,noiseBuf=null;
+function soundOn(){return ss("pool-sound")!=="0"}
+function ac(){if(!AC){const K=window.AudioContext||window.webkitAudioContext;if(!K)return null;try{AC=new K()}catch(e){return null}}return AC}
+function audioReady(){return !!AC&&AC.state==="running"}
+function unlock(){const c=ac();if(c&&c.state!=="running"){c.resume().then(updateTap,()=>{})}else updateTap()}
+function updateTap(){const t=$("tapSound");if(t)t.hidden=!(busy&&soundOn()&&!audioReady())}
+document.addEventListener("pointerdown",unlock,true);document.addEventListener("keydown",unlock,true);
+function noise(){const c=ac();if(!noiseBuf){noiseBuf=c.createBuffer(1,c.sampleRate*0.5,c.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}return noiseBuf}
+function drumHit(vol){
+  if(!soundOn()||!audioReady())return;const c=AC,t=c.currentTime;
+  const n=c.createBufferSource();n.buffer=noise();const bp=c.createBiquadFilter();bp.type="bandpass";bp.frequency.value=900;bp.Q.value=.8;
+  const g=c.createGain();g.gain.setValueAtTime(vol*.55,t);g.gain.exponentialRampToValueAtTime(.001,t+.09);n.connect(bp).connect(g).connect(c.destination);n.start(t);n.stop(t+.1);
+  const o=c.createOscillator();o.type="sine";o.frequency.setValueAtTime(190,t);o.frequency.exponentialRampToValueAtTime(90,t+.08);
+  const g2=c.createGain();g2.gain.setValueAtTime(vol*.7,t);g2.gain.exponentialRampToValueAtTime(.001,t+.1);o.connect(g2).connect(c.destination);o.start(t);o.stop(t+.12);
+}
+function drumStart(dur){drumStop();const t0=performance.now();(function loop(){const p=Math.min(1,(performance.now()-t0)/dur);drumHit(.25+.75*p);drumIv=setTimeout(loop,p<.35?120:p<.7?80:55)})()}
+function drumStop(){if(drumIv){clearTimeout(drumIv);drumIv=null}}
+function tone(f,t,len,type,vol){const c=AC,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.02);g.gain.exponentialRampToValueAtTime(.001,t+len);o.connect(g).connect(c.destination);o.start(t);o.stop(t+len+.05)}
+function fanfare(){if(!soundOn()||!audioReady())return;const c=AC,t=c.currentTime;
+  const n=c.createBufferSource();n.buffer=noise();const hp=c.createBiquadFilter();hp.type="highpass";hp.frequency.value=5000;const g=c.createGain();g.gain.setValueAtTime(.5,t);g.gain.exponentialRampToValueAtTime(.001,t+.5);n.connect(hp).connect(g).connect(c.destination);n.start(t);n.stop(t+.5);
+  [[523.25,0],[659.25,.1],[783.99,.2],[1046.5,.32]].forEach(([f,d])=>tone(f,t+d,d>.3?.9:.25,"triangle",.32));
+  [523.25,659.25,783.99].forEach(f=>tone(f,t+.32,.9,"sawtooth",.05));}
+function boo(){if(!soundOn()||!audioReady())return;const c=AC,t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type="triangle";o.frequency.setValueAtTime(420,t);o.frequency.exponentialRampToValueAtTime(140,t+.6);g.gain.setValueAtTime(.3,t);g.gain.exponentialRampToValueAtTime(.001,t+.7);o.connect(g).connect(c.destination);o.start(t);o.stop(t+.75)}
+$("soundBtn").onclick=()=>{ss("pool-sound",soundOn()?"0":"1");if(!soundOn())drumStop();unlock();renderHeader();updateTap()};
+$("tapSound").onclick=()=>unlock();
+
+/* ---------- 룰렛 연출 ---------- */
+function animateRoulette(w,names){
+  busy=true;renderAll(true,true);
+  const slot=$("slot"),nm=$("slotName"),pr=$("slotPrize");
+  if(!slot){busy=false;shownSeq=w.seq;renderAll(true);return}
+  slot.classList.remove("landed","wait");slot.classList.add("spinning");pr.textContent=unitLabel(w.ui)+" 주인공은…";
+  if(!names||names.length<2)names=pool().slice();
+  const dur=REDUCED?1500:4000;const t0=performance.now();let last=-1;
+  unlock();drumStart(dur);updateTap();
+  (function tick(){
+    const t=(performance.now()-t0)/dur;
+    if(t>=1){nm.textContent=w.name;slot.classList.remove("spinning");slot.classList.add("landed");pr.textContent="→ "+unitLabel(w.ui)+" 당첨!";
+      drumStop();fanfare();bubbles();busy=false;updateTap();shownSeq=w.seq;freshSeq=w.seq;renderSide();setTimeout(()=>{if(!busy)renderAll(true)},REDUCED?200:1500);return}
+    let i;do{i=rnd(names.length)}while(names.length>1&&i===last);last=i;nm.textContent=names[i];
+    setTimeout(tick,40+Math.pow(t,3)*360);
+  })();
+}
+function bubbles(){if(REDUCED)return;const b=$("bubbles");b.textContent="";for(let i=0;i<22;i++){const e=document.createElement("i");e.style.left=(5+Math.random()*90)+"%";e.style.animationDelay=(Math.random()*.5)+"s";const s=8+Math.random()*16;e.style.width=e.style.height=s+"px";b.appendChild(e)}setTimeout(()=>b.textContent="",2600)}
+
+/* ---------- 사다리 ---------- */
+const rungMemo={};
+function rungsFor(L){
+  const key=L.seed+":"+L.names.length;if(rungMemo[key])return rungMemo[key];
+  const N=L.names.length,rng=mulberry32(L.seed),r=[];
+  for(let l=0;l<LV;l++){const row=Array(Math.max(0,N-1)).fill(false);for(let c=0;c<N-1;c++){if(c>0&&row[c-1])continue;row[c]=rng()<0.5}r.push(row)}
+  for(let c=0;c<N-1;c++){if(!r.some(row=>row[c])){for(let t=0;t<LV;t++){const l=Math.floor(rng()*LV);if(!r[l][c-1]&&!r[l][c+1]){r[l][c]=true;break}}}}
+  return rungMemo[key]=r;
+}
+function geoN(N){N=Math.max(1,N);const colW=N>18?58:66;const padX=40,top=56,lvH=30,bot=60;
+  return {N,colW,padX,top,W:padX*2+colW*Math.max(1,N-1),H:top+lvH*(LV+1)+bot,x:c=>padX+c*colW,y:l=>top+lvH*(l+1),yEnd:top+lvH*(LV+1)}}
+function traceFor(L,c){
+  const r=rungsFor(L),g=geoN(L.names.length);const pts=[[g.x(c),g.top]];
+  for(let l=0;l<LV;l++){const y=g.y(l);pts.push([g.x(c),y]);
+    if(r[l][c]){c=c+1;pts.push([g.x(c),y])}else if(c>0&&r[l][c-1]){c=c-1;pts.push([g.x(c),y])}}
+  pts.push([g.x(c),g.yEnd]);return{pts,end:c};
+}
+const PATHC=["#0a86ab","#d9432a","#0f8a5f","#8a5cd6","#c77a00","#d63a8a","#2a6fd6","#5a8a00"];
+function cssv(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function roundRect(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath()}
+const pendingCols=new Set();
+function drawLadder(anim){
+  const cv=$("ladderCv");if(!cv)return;const names=pool();const g=geoN(names.length);const dpr=window.devicePixelRatio||1;
+  if(cv.width!==Math.round(g.W*dpr)||cv.height!==Math.round(g.H*dpr)){cv.width=Math.round(g.W*dpr);cv.height=Math.round(g.H*dpr);cv.style.width=g.W+"px";cv.style.height=g.H+"px"}
+  const x=cv.getContext("2d");x.setTransform(dpr,0,0,dpr,0,0);x.clearRect(0,0,g.W,g.H);
+  const ink=cssv("--ink"),muted=cssv("--muted"),line=cssv("--line"),win=cssv("--win"),surf=cssv("--surface"),bodyF=cssv("--body");
+  const L=S.ladder;const hidden=new Set(pendingCols);if(anim)hidden.add(anim.col);
+  const shownRev=L?L.revealed.filter(c=>!hidden.has(c)):[];
+  x.lineCap="round";x.lineJoin="round";x.strokeStyle=line;x.lineWidth=4;
+  for(let c=0;c<names.length;c++){x.beginPath();x.moveTo(g.x(c),g.top);x.lineTo(g.x(c),g.yEnd);x.stroke()}
+  const drawPath=(pts,color,frac)=>{let total=0;const seg=[];for(let i=1;i<pts.length;i++){const d=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]);seg.push(d);total+=d}
+    let left=total*frac;x.strokeStyle=color;x.lineWidth=5;x.beginPath();x.moveTo(pts[0][0],pts[0][1]);let tip=pts[0];
+    for(let i=1;i<pts.length&&left>0;i++){const d=seg[i-1];const f=Math.min(1,left/d);tip=[pts[i-1][0]+(pts[i][0]-pts[i-1][0])*f,pts[i-1][1]+(pts[i][1]-pts[i-1][1])*f];x.lineTo(tip[0],tip[1]);left-=d}
+    x.stroke();return tip};
+  if(L)shownRev.forEach(c=>drawPath(traceFor(L,c).pts,PATHC[c%PATHC.length],1));
+  if(anim&&L){const tip=drawPath(traceFor(L,anim.col).pts,PATHC[anim.col%PATHC.length],anim.frac);x.fillStyle=PATHC[anim.col%PATHC.length];x.beginPath();x.arc(tip[0],tip[1],8,0,Math.PI*2);x.fill()}
+  x.textAlign="center";x.font="700 13px "+bodyF;
+  for(let c=0;c<names.length;c++){const on=shownRev.includes(c)||(anim&&anim.col===c);const col=PATHC[c%PATHC.length];
+    x.fillStyle=on?col:ink;let n=String(names[c]||"");if(n.length>5)n=n.slice(0,4)+"…";x.fillText(n,g.x(c),g.top-26);
+    x.fillStyle=on?col:surf;x.strokeStyle=on?col:muted;x.lineWidth=2;x.beginPath();x.arc(g.x(c),g.top-8,6,0,Math.PI*2);x.fill();x.stroke()}
+  const ends={};if(L)shownRev.forEach(c=>{ends[traceFor(L,c).end]=c});
+  x.font="700 12px "+bodyF;
+  for(let c=0;c<names.length;c++){const y=g.yEnd+26;
+    if(L&&c in ends){const ui=L.bottom[c];if(ui>=0){x.fillStyle=win;roundRect(x,g.x(c)-24,y-14,48,24,7);x.fill();x.fillStyle=surf;x.fillText("당첨",g.x(c),y+3)}else{x.fillStyle=muted;x.fillText("꽝",g.x(c),y+3)}}
+    else{x.fillStyle=muted;x.fillText("?",g.x(c),y+3)}}
+}
+function animateLadder(col,seq){
+  busy=true;pendingCols.add(col);renderAll(true,true);
+  const L=S.ladder;const sc=$("ladderScroll");const tr=traceFor(L,col);const ui=L.bottom[tr.end];const name=L.names[col];
+  const msg=$("ladderMsg");if(msg)msg.textContent=name+" 내려가는 중…";
+  const dur=REDUCED?1200:3400;const t0=performance.now();
+  unlock();drumStart(dur);updateTap();
+  function f(now){const fr=Math.min(1,(now-t0)/dur);const e=fr<.5?2*fr*fr:1-Math.pow(-2*fr+2,2)/2;
+    drawLadder({col,frac:e});
+    if(sc){const i=Math.round(e*(tr.pts.length-1));sc.scrollLeft=Math.max(0,tr.pts[i][0]-sc.clientWidth/2)}
+    if(fr<1)requestAnimationFrame(f);
+    else{busy=false;pendingCols.delete(col);shownSeq=seq;freshSeq=seq;drumStop();if(ui>=0)fanfare();else boo();updateTap();
+      if(msg)msg.textContent=ui>=0?`${name} → ${unitLabel(ui)} 당첨!`:`${name} → 꽝`;if(ui>=0)bubbles();
+      drawLadder(null);renderSide();setTimeout(()=>{if(!busy)renderAll(true)},REDUCED?200:1200)}}
+  requestAnimationFrame(f);
+}
+
+/* ---------- 렌더 ---------- */
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+function renderAll(stage,force){renderHeader();renderSide();renderSetup();if(stage!==false&&(!busy||force))renderStage()}
+function renderSide(){renderReg();renderPeople();renderPrizes();renderWinners();renderHeader()}
+function renderHeader(){
+  $("phasePill").textContent=isOpen()?(done()?"추첨 끝":"추첨 진행 중"):"추첨 전";
+  const sb=$("soundBtn");sb.setAttribute("aria-pressed",soundOn());sb.textContent=soundOn()?"🔊 소리 켜짐":"🔇 소리 꺼짐";
+  $("cntPeople").textContent=pool().length;$("cntDone").textContent=visibleWinners().length;$("cntTotal").textContent=totalDraws();
+}
+function renderPeople(){
+  const box=$("people");box.textContent="";const list=pool();$("peopleCount").textContent=list.length+"명";
+  if(!list.length){box.appendChild(el("p","empty","진행자가 명단을 넣으면 여기에 보여요."));return}
+  const won=new Set(visibleWinners().map(w=>w.pidx));
+  list.forEach((n,i)=>box.appendChild(el("span","chip"+(won.has(i)?" won":""),n)));
+}
+function renderStage(){
+  const st=$("stageInner");st.textContent="";
+  if(!ready){st.appendChild(el("div","lane-label","LOADING · 불러오는 중"));return}
+  if(!canSee()){
+    st.appendChild(el("div","lane-label","WAITING · 추첨 대기 중"));
+    const s=el("div","slot wait");s.append(el("div","name","추첨 전이에요"),el("div","prize","진행자가 시작하면 이 화면에서 바로 추첨이 진행돼요."));
+    st.appendChild(s);st.appendChild(el("p","hint","새로고침하지 않고 그대로 열어 두면 돼요. 화면을 한 번 눌러 두면 소리도 나요."));return;
+  }
+  const preOpen=!isOpen();
+  if(preOpen)st.appendChild(el("p","hint","진행자 미리보기 · 아직 다른 사람에게는 공개되지 않았어요."));
+  if(S.mode==="roulette"){
+    const vis=visibleWinners();const nextUi=S.winners.length;
+    st.appendChild(el("div","lane-label","LANE "+String(Math.min(vis.length+(done()?0:1),totalDraws())).padStart(2,"0")+" / "+String(totalDraws()).padStart(2,"0")));
+    const slot=el("div","slot");slot.id="slot";const nm=el("div","name");nm.id="slotName";const pr=el("div","prize");pr.id="slotPrize";
+    const lastW=vis[vis.length-1];
+    if(done()&&lastW&&!busy){nm.textContent="추첨 끝!";pr.textContent=`경품 ${totalDraws()}개의 주인이 모두 정해졌어요.`}
+    else if(lastW&&S.last&&S.last.kind==="draw"&&S.last.seq===lastW.seq){nm.textContent=lastW.name;pr.textContent="→ "+unitLabel(lastW.ui)+" 당첨!";slot.classList.add("landed")}
+    else{nm.textContent=preOpen?"추첨 준비":"곧 시작합니다";pr.textContent=`참가자 ${pool().length}명 중 ${totalDraws()}명`}
+    slot.append(nm,pr);st.appendChild(slot);
+    if(!done()){const u=units()[nextUi];if(u){const nx=el("div","next");const src=prizeImg(S.prizes[u.pi]);if(src){const im=new Image();im.src=src;im.alt="";nx.appendChild(im)}nx.appendChild(el("span",null,"다음 경품: "+unitLabel(nextUi)));st.appendChild(nx)}}
+  } else {
+    const msg=el("div","lane-label");msg.id="ladderMsg";const L=S.ladder;
+    const lastRev=L&&L.revealed.length?L.revealed[L.revealed.length-1]:null;
+    if(done())msg.textContent="모든 경품 주인이 정해졌어요!";
+    else if(lastRev!=null&&S.last&&S.last.kind==="ladder"){const ui=L.bottom[traceFor(L,lastRev).end];msg.textContent=ui>=0?`${L.names[lastRev]} → ${unitLabel(ui)} 당첨!`:`${L.names[lastRev]} → 꽝`}
+    else msg.textContent=`사다리는 숨겨져 있어요 · 당첨 ${totalDraws()}칸 · 꽝 ${Math.max(0,pool().length-totalDraws())}칸`;
+    st.appendChild(msg);
+    const sc=el("div","ladder-scroll");sc.id="ladderScroll";const cv=document.createElement("canvas");cv.id="ladderCv";cv.setAttribute("role","img");cv.setAttribute("aria-label","숨겨진 사다리");sc.appendChild(cv);st.appendChild(sc);
+    cv.addEventListener("click",ev=>{if(!isHost||busy||done()||preOpen)return;const r=cv.getBoundingClientRect();const g=geoN(pool().length);if(ev.clientY-r.top>g.top+10)return;const c=Math.round((ev.clientX-r.left-g.padX)/g.colW);if(c>=0&&c<pool().length)revealLadder(c)});
+    drawLadder(null);
+  }
+  if(isHost){
+    const a=el("div","actions");
+    if(preOpen){const b=el("button","primary go","추첨 시작 (모두에게 공개)");b.type="button";b.disabled=busy||pool().length<2;b.onclick=openNow;a.appendChild(b);st.appendChild(a);
+      st.appendChild(el("p","hint",pool().length<2?"먼저 아래 진행자 설정에서 참가자 명단을 넣어 주세요.":"누르면 열려 있는 모든 화면에 추첨 무대가 바로 열려요."))}
+    else{const label=busy?"전송 중…":done()?"추첨 완료":S.mode==="roulette"?`${S.winners.length+1}번째 추첨하기`:"다음 사람 내려가기";
+      const b=el("button","primary",label);b.type="button";b.disabled=busy||done()||pool().length<2;b.onclick=S.mode==="roulette"?drawRoulette:()=>revealLadder(null);a.appendChild(b);st.appendChild(a);
+      if(S.mode==="ladder"&&!done())st.appendChild(el("p","hint","위쪽 이름을 직접 눌러 그 사람을 내려보낼 수도 있어요."))}
+  } else if(!done())st.appendChild(el("p","hint","진행자가 뽑는 순간 이 화면에서 바로 보여요."));
+}
+function renderPrizes(){
+  const box=$("prizeList");box.textContent="";const us=units();const taken=new Set(visibleWinners().map(w=>w.ui));
+  (S.prizes||[]).forEach((p,pi)=>{let total=0,left=0;us.forEach((u,i)=>{if(u.pi===pi){total++;if(!taken.has(i))left++}});
+    const row=el("div","prize-row"+(total&&!left?" gone":""));const src=prizeImg(p);
+    if(src){const im=new Image();im.src=src;im.alt=String(p.name||"");row.appendChild(im)}else row.appendChild(el("div","ph","사진 없음"));
+    const m=el("div","meta");m.appendChild(el("div","pname",String(p.name||"(이름 없음)")));m.appendChild(el("div","left",`남은 수량 ${left} / ${total}`));row.appendChild(m);box.appendChild(row)});
+}
+function renderWinners(){
+  const ol=$("winList");ol.textContent="";
+  if(!canSee()){ol.appendChild(el("p","empty","추첨이 시작되면 공개돼요."));return}
+  const vis=visibleWinners();if(!vis.length){ol.appendChild(el("p","empty","아직 당첨자가 없어요."));return}
+  vis.forEach((w,i)=>{const li=el("li",w.seq===freshSeq?"fresh":"");li.append(el("span","no",String(i+1).padStart(2,"0")),el("span","wn",String(w.name)),el("span","wp",unitLabel(w.ui)));ol.appendChild(li)});
+}
+let setupInit=false;
+function renderSetup(){
+  const d=$("setup");d.hidden=!isHost;if(!isHost)return;
+  if(!setupInit){setupInit=true;d.open=!started()}
+  const lock=started()||busy;
+  $("modeRoulette").setAttribute("aria-pressed",S.mode==="roulette");$("modeLadder").setAttribute("aria-pressed",S.mode==="ladder");
+  $("modeRoulette").disabled=$("modeLadder").disabled=lock;
+  $("pApply").disabled=$("pFill").disabled=lock;$("pList").readOnly=started();
+  if(document.activeElement!==$("pList")&&!$("pList").dataset.dirty)$("pList").value=(S.participants||[]).join("\n");
+  $("pInfo").textContent=started()?"추첨이 시작되어 잠겼어요.":`저장된 인원 ${(S.participants||[]).length}명`;
+  const pe=$("prizeEdit");if(!pe.contains(document.activeElement)){pe.textContent="";
+    (S.prizes||[]).forEach((p,pi)=>{const r=el("div","pe");const src=prizeImg(p);
+      if(src){const im=new Image();im.src=src;im.alt="";r.appendChild(im)}else r.appendChild(el("span"));
+      const nm=document.createElement("input");nm.type="text";nm.id="pn"+pi;nm.value=p.name;nm.setAttribute("aria-label","경품 이름");nm.disabled=busy;
+      nm.onchange=()=>{const n=clone(S);n.prizes[pi].name=nm.value.trim().slice(0,30)||"경품";bump(n,"edit");commit(n,"경품 이름을 바꿨어요.")};
+      const q=document.createElement("input");q.type="number";q.id="pq"+pi;q.min="0";q.max="100";q.value=p.qty;q.disabled=lock;q.setAttribute("aria-label","수량");
+      q.onchange=()=>{const n=clone(S);n.prizes[pi].qty=Math.max(0,Math.min(100,parseInt(q.value)||0));bump(n,"edit");commit(n,"수량을 바꿨어요.")};
+      r.append(nm,q);pe.appendChild(r)})}
+  $("prizeNote").textContent=started()?"추첨 중에는 이름만 바꿀 수 있어요.":`총 ${units().length}개 · 경품은 위에서부터 순서대로 나가요.`;
+  const ra=$("resetArea");ra.textContent="";
+  const msgs={undo:"마지막 결과를 취소할까요?",reset:"추첨 결과를 모두 지울까요? (명단은 유지)",close:"결과를 지우고 다시 비공개로 돌릴까요?"};
+  if(confirmKind){const c=el("div","confirm");c.appendChild(el("span",null,msgs[confirmKind]));
+    const y=el("button","small danger","확인");y.type="button";y.onclick={undo:undoLast,reset:resetDraws,close:closeAgain}[confirmKind];
+    const n=el("button","small","아니요");n.type="button";n.onclick=()=>{confirmKind=null;renderSetup()};c.append(y,n);ra.appendChild(c)}
+  else{const row=el("div","row");
+    const mk=(t,k,dis,cls)=>{const b=el("button","small"+(cls?" "+cls:""),t);b.type="button";b.disabled=dis||busy;b.onclick=()=>{confirmKind=k;renderSetup()};row.appendChild(b)};
+    mk("마지막 결과 취소","undo",!started());mk("결과 초기화","reset",!started(),"danger");mk("다시 비공개로","close",!isOpen(),"danger");
+    ra.appendChild(row);ra.appendChild(el("p","note","당첨자가 자리에 없으면 '마지막 결과 취소' 후 다시 뽑으세요."))}
+}
+
+/* ---------- 설정 이벤트 ---------- */
+$("modeRoulette").onclick=()=>{if(started()||S.mode==="roulette")return;const n=clone(S);n.mode="roulette";n.ladder=null;bump(n,"edit");commit(n,"룰렛 방식으로 바꿨어요.")};
+$("modeLadder").onclick=()=>{if(started()||S.mode==="ladder")return;const n=clone(S);n.mode="ladder";n.ladder=null;bump(n,"edit");commit(n,"사다리 방식으로 바꿨어요.")};
+$("pFill").onclick=()=>{const k=Math.max(2,Math.min(200,parseInt($("pCount").value)||0));const a=[];for(let i=1;i<=k;i++)a.push(i+"번");$("pList").value=a.join("\n");$("pList").dataset.dirty="1";toast(`${k}명 번호를 채웠어요. '명단 저장'을 눌러 주세요.`)};
+$("pList").addEventListener("input",()=>$("pList").dataset.dirty="1");
+$("pApply").onclick=()=>{if(started())return;const seen=new Set();const list=$("pList").value.split(/[\n,]+/).map(s=>s.trim().slice(0,20)).filter(s=>s&&!seen.has(s)&&seen.add(s));
+  if(list.length<2){toast("참가자를 2명 이상 넣어 주세요.");return}const n=clone(S);n.participants=list;n.ladder=null;bump(n,"edit");delete $("pList").dataset.dirty;commit(n,`참가자 ${list.length}명을 저장했어요.`)};
+$("copyBtn").onclick=()=>{const vis=visibleWinners();const txt="[수영장 회식 경품 당첨자]\n"+(vis.length?vis.map((w,i)=>`${i+1}. ${w.name} - ${unitLabel(w.ui)}`).join("\n"):"아직 없음");
+  const box=$("copyBox");box.value=txt;
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(()=>{box.hidden=true;toast("당첨자 명단을 복사했어요.")},()=>{box.hidden=false;box.select();toast("텍스트를 선택해 두었어요. 직접 복사해 주세요.")})}
+  else{box.hidden=false;box.select()}};
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{if(S.mode==="ladder"&&!busy)drawLadder(null)});
+
+/* ---------- 시작 ---------- */
+async function sha256hex(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function boot(){
+  renderAll(true);
+  const m=/^#host=([A-Za-z0-9]+)$/.exec(location.hash);
+  if(m){try{isHost=(await sha256hex(m[1]))===CFG.HOST_HASH}catch(e){isHost=false}if(!isHost)toast("진행자 키가 맞지 않아요. 관전 화면으로 열었어요.")}
+  const latest=await loadLatest();
+  if(latest)S=latest;
+  else if(isHost){try{const s=localStorage.getItem(LS_KEY);if(s){const d=JSON.parse(s);if(valid(d))S=d}}catch(e){}}
+  ready=true;shownSeq=(S.last&&S.last.seq)||0;renderAll(true);
+  subscribe();
+  if(isHost){loadJoinStore();watchJoins()}
+  /* 화면을 다시 켰을 때 놓친 메시지를 받아 오기 위해 재연결 */
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&(!es||es.readyState===2))subscribe()});
+}
+boot();
+})();
+</script>
+</body>
+</html>
